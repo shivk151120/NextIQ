@@ -1,0 +1,18 @@
+{% extends "core/base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Add New Phrase</h2>
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="mb-3">
+            {{ form.text.label_tag }}
+            {{ form.text }}
+        </div>
+        <div class="mb-3">
+            {{ form.audio.label_tag }}
+            {{ form.audio }}
+        </div>
+        <button type="submit" class="btn btn-success">Add Phrase</button>
+    </form>
+</div>
+{% endblock %}

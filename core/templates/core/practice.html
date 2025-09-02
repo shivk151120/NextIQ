@@ -1,0 +1,183 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="container mt-5">
+  <h3>Practice Phrase</h3>
+
+  <!-- Phrase & Audio -->
+  <div class="mb-3">
+    <p id="targetPhrase">{{ phrase.text }}</p>
+    {% if phrase.audio %}
+    <audio controls>
+      <source src="{{ phrase.audio.url }}" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+    {% endif %}
+  </div>
+
+  <!-- Typing Output -->
+  <div class="mb-3">
+    <div id="output" class="border p-2" style="min-height:50px; font-size:1.5rem;"></div>
+  </div>
+
+  <!-- Motivational Hint -->
+  <div class="mb-3">
+    <span id="hint" style="font-weight:bold; color:#ff4500;"></span>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="progress mb-3">
+    <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+  </div>
+
+  <!-- Typing Buttons -->
+  <div class="mb-3">
+    <div class="mb-2">
+      <button class="btn btn-primary me-2 mb-2" onclick="addChar('capitalize')">Capitalize</button>
+      <button class="btn btn-success me-2 mb-2" onclick="addChar('next')">Next</button>
+      <button class="btn btn-warning me-2 mb-2" onclick="addChar('space')">Space</button>
+      <button class="btn btn-info me-2 mb-2" onclick="addChar('fullstop')">Full Stop</button>
+    </div>
+    <div>
+      <button class="btn btn-secondary me-2 mb-2" onclick="addChar('comma')">Comma</button>
+      <button class="btn btn-danger me-2 mb-2" onclick="restart()">Restart</button>
+      <button class="btn btn-dark me-2 mb-2" onclick="startTimer()">Start Timer</button>
+      <button class="btn btn-dark mb-2" onclick="stopTimer()">Stop Timer</button>
+    </div>
+  </div>
+
+  <!-- Timer & Attempts -->
+  <div class="mb-3">
+    Time: <span id="timer">0</span> seconds | Attempts: <span id="attemptCount">{{ user_attempts }}</span>
+  </div>
+
+  <!-- Likes -->
+  <div class="mb-3">
+      <form method="post">
+          {% csrf_token %}
+          <button type="submit" name="like" class="btn btn-outline-primary">
+            {% if user_liked %}❤️ Liked{% else %}♡ Like{% endif %}
+          </button>
+          <span id="likesCount">{{ likes_count }}</span> likes
+      </form>
+  </div>
+
+  <!-- Comments -->
+  <div class="mb-3">
+      <h5>Comments</h5>
+      <form method="post">
+          {% csrf_token %}
+          <input type="text" name="comment_text" class="form-control" placeholder="Add a comment" required>
+          <button type="submit" class="btn btn-success mt-2">Comment</button>
+      </form>
+      <ul class="list-group mt-2">
+          {% for comment in comments %}
+              <li class="list-group-item"><strong>{{ comment.user.username }}:</strong> {{ comment.text }}</li>
+          {% empty %}
+              <li class="list-group-item">No comments yet.</li>
+          {% endfor %}
+      </ul>
+  </div>
+
+  <div class="mt-3">
+      <a href="{% url 'home' %}" class="btn btn-outline-secondary">Back to Dashboard</a>
+  </div>
+</div>
+
+<style>
+.correct { color: green; }
+.wrong { color: red; }
+button.btn:hover { opacity: 0.8; transition: 0.2s; }
+.progress-bar { background-color: #28a745; }
+</style>
+
+<script>
+let target = document.getElementById("targetPhrase").innerText;
+let outputDiv = document.getElementById("output");
+let progressBar = document.getElementById("progressBar");
+let hintDiv = document.getElementById("hint");
+let currentIndex = 0;
+let output = "";
+let timer = 0;
+let timerInterval = null;
+let attempts = {{ user_attempts|default:0 }};
+
+// Timer
+function startTimer() {
+    if(timerInterval) return;
+    timerInterval = setInterval(() => {
+        timer++;
+        document.getElementById("timer").innerText = timer;
+    }, 1000);
+}
+function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+}
+
+// Restart
+function restart() {
+    output = "";
+    currentIndex = 0;
+    timer = 0;
+    stopTimer();
+    outputDiv.innerHTML = "";
+    progressBar.style.width = "0%";
+    hintDiv.innerText = "";
+}
+
+// Button click logic
+function addChar(action){
+    if(currentIndex >= target.length) return;
+
+    let char = target[currentIndex];
+    let correct = false;
+    let hint = "";
+
+    if(action === 'capitalize') correct = (char === char.toUpperCase() && char.match(/[A-Z]/));
+    else if(action === 'next') correct = true;
+    else if(action === 'space') correct = (char === ' ');
+    else if(action === 'fullstop') correct = (char === '.');
+    else if(action === 'comma') correct = (char === ',');
+
+    // Add char to output
+    output += correct ? `<span class="correct">${char}</span>` : `<span class="wrong">${char}</span>`;
+    currentIndex++;
+
+    // Update output & progress
+    outputDiv.innerHTML = output;
+    progressBar.style.width = Math.round((currentIndex / target.length) * 100) + "%";
+
+    // Give hint
+    if(!correct){
+        if(char.match(/[A-Z]/)) hint = "⚠ Capitalization wrong!";
+        else if(char === ' ') hint = "⚠ Space missing!";
+        else if(char === ',') hint = "⚠ Comma missing!";
+        else if(char === '.') hint = "⚠ Full stop missing!";
+        else hint = "⚠ Check spelling!";
+    }
+    hintDiv.innerText = hint;
+
+    // Completed
+    if(currentIndex >= target.length){
+        stopTimer();
+        attempts++;
+        document.getElementById("attemptCount").innerText = attempts;
+        alert("✅ Phrase Completed! Time: " + timer + " seconds 🎉");
+        hintDiv.innerText = "🎉 Great job! Keep practicing!";
+        saveAttempt(correct);
+    }
+}
+
+// Save attempt to backend
+function saveAttempt(isCorrect){
+    fetch("{% url 'save_attempt' phrase.id %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}"
+        },
+        body: JSON.stringify({is_correct: isCorrect, time_taken: timer})
+    });
+}
+</script>
+{% endblock %}

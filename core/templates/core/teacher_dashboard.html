@@ -1,0 +1,118 @@
+{% extends 'core/base.html' %}
+{% load static %}
+{% block content %}
+<div class="container mt-5">
+  <h3>Teacher Dashboard</h3>
+  <p>Welcome, {{ request.user.username }}!</p>
+
+  <!-- Add New Phrase -->
+  <a href="{% url 'add_phrase' %}" class="btn btn-success mb-3">Add New Phrase</a>
+
+  <!-- Phrases List -->
+  <h5>All Phrases</h5>
+  <table class="table table-bordered">
+    <thead class="table-dark">
+      <tr>
+        <th>Phrase Text</th>
+        <th>Audio</th>
+        <th>Created By</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for phrase in phrases %}
+      <tr>
+        <td>{{ phrase.text }}</td>
+        <td>
+          {% if phrase.audio %}
+          <audio controls>
+            <source src="{{ phrase.audio.url }}" type="audio/mpeg">
+          </audio>
+          {% else %}
+          No Audio
+          {% endif %}
+        </td>
+        <td>{{ phrase.created_by.username }}</td>
+        <td>
+          <a href="{% url 'edit_phrase' phrase.id %}" class="btn btn-primary btn-sm">Edit</a>
+          <a href="{% url 'delete_phrase' phrase.id %}" class="btn btn-danger btn-sm"
+             onclick="return confirm('Are you sure you want to delete this phrase?');">Delete</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4">No phrases available</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Leaderboard -->
+  <h5 class="mt-5">Leaderboard</h5>
+  <table class="table table-striped table-bordered">
+    <thead class="table-dark">
+      <tr>
+        <th>Rank</th>
+        <th>Student</th>
+        <th>Points</th>
+        <th>Correct Attempts</th>
+        <th>Badges</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for student in leaderboard %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ student.student.username }}</td>
+        <td>{{ student.points }}</td>
+        <td>{{ student.correct_attempts }}</td>
+        <td>
+          {% if student.badges %}
+            {% for badge in student.badges %}
+            <span class="badge bg-success me-1">{{ badge }}</span>
+            {% endfor %}
+          {% else %}
+            None
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">No students yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Student Progress -->
+  <h5 class="mt-5">All Attempts</h5>
+  <table class="table table-striped table-bordered">
+    <thead class="table-dark">
+      <tr>
+        <th>Student</th>
+        <th>Phrase</th>
+        <th>Time Taken (sec)</th>
+        <th>Correct?</th>
+        <th>Date</th>
+        <th>Badges</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for attempt in attempts %}
+      <tr class="{% if attempt.is_correct %}table-success{% else %}table-danger{% endif %}">
+        <td>{{ attempt.user.username }}</td>
+        <td>{{ attempt.phrase.text }}</td>
+        <td>{{ attempt.time_taken }}</td>
+        <td>{% if attempt.is_correct %}✔{% else %}✖{% endif %}</td>
+        <td>{{ attempt.attempt_date|date:"d M Y H:i" }}</td>
+        <td>
+          {% for badge in attempt.user.badges.all %}
+            <span class="badge bg-success me-1">{{ badge.name }}</span>
+          {% empty %}
+            None
+          {% endfor %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">No student attempts yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
