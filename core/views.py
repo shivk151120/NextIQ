@@ -303,17 +303,17 @@ def example_detail(_request, example_id):
 # Static pages
 # -----------------------------
 @login_required
-def about(request):
+def about_page(request):
     return render(request, "core/about.html")
 
 
 @login_required
-def contact(request):
+def contact_page(request):
     return render(request, "core/contact.html")
 
 
 @login_required
-def examples(request):
+def examples_page(request):
     return render(request, "core/examples.html")
 
 
