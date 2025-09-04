@@ -94,7 +94,7 @@ lbModal.addEventListener('show.bs.modal', () => {
 // Progress chart (correct vs total over time)
 const raw = [
   {% for a in attempts reversed %}
-    {"d":"{{ a.attempt_date|date:'Y-m-d H:i' }}","c": {{ 1 if a.is_correct else 0 }}, "t":1},
+    {"d":"{{ a.attempt_date|date:'Y-m-d H:i' }}","c": {% if a.is_correct %}1{% else %}0{% endif %}, "t":1},
   {% endfor %}
 ];
 const labels = raw.map(x => x.d);
