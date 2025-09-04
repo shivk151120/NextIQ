@@ -6,6 +6,10 @@
   <title>Alloneword</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
+  <!-- Favicon for all pages -->
+  <link rel="shortcut icon" href="{% static 'core/favicon.ico' %}" type="image/x-icon">
+  <link rel="icon" href="{% static 'core/favicon.ico' %}" type="image/x-icon">
+
   <!-- TailwindCSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js for graphs -->
@@ -39,6 +43,7 @@
   <a href="{% url 'contact_page' %}" class="block hover:text-blue-600">Contact</a>
 </div>
 
+<!-- Main content -->
 <main class="py-8 px-4 md:px-8 max-w-6xl mx-auto">
   {% block content %}{% endblock %}
 </main>
@@ -63,6 +68,7 @@
   </div>
 </footer>
 
+<!-- Mobile menu toggle -->
 <script>
   const btn = document.getElementById('menu-btn');
   const menu = document.getElementById('mobile-menu');
