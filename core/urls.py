@@ -17,10 +17,10 @@ urlpatterns = [
     path('delete-phrase/<int:phrase_id>/', views.delete_phrase, name='delete_phrase'),
 
     # New Pages (Menu)
-    path('about/', views.about_page, name='about_page'),
-    path('examples/', views.examples_page, name='examples_page'),
+    path('about/', views.about_page, name='about'),
+    path('examples/', views.examples_page, name='examples'),
     path('examples/<int:example_id>/', views.example_detail, name='example_detail'),
-    path('contact/', views.contact_page, name='contact_page'),
+    path('contact/', views.contact_page, name='contact'),
 
     # Parent-Student Linking
     path('link-student-parent/', views.link_student_parent, name='link_student_parent'),

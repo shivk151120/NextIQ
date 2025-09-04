@@ -111,7 +111,8 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'  # collectstatic will put all static file
 
 # Media files (user uploads)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 
 
 # Default primary key field type
