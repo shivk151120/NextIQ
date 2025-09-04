@@ -99,7 +99,11 @@ const raw = [
   {% for a in attempts reversed %}
     {
       "d": "{{ a.attempt_date|date:'Y-m-d H:i' }}",
-      "c": {% if a.is_correct %}1{% else %}0{% endif %},
+      {% if a.is_correct %}
+      "c": 1,
+      {% else %}
+      "c": 0,
+      {% endif %}
       "t": 1
     },
   {% endfor %}
