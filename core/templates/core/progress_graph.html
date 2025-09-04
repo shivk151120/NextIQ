@@ -1,0 +1,108 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ student.username }} Progress</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+
+<div class="container mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-4">{{ student.username }} Progress</h1>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white p-4 rounded shadow">
+            <h2 class="text-lg font-semibold">Total Attempts</h2>
+            <p class="text-2xl font-bold">{{ graph_data|length }}</p>
+        </div>
+        <div class="bg-white p-4 rounded shadow">
+            <h2 class="text-lg font-semibold">Correct Attempts</h2>
+            <p class="text-2xl font-bold">
+                {{ graph_data|filterattr:"correct"|length }}
+            </p>
+        </div>
+        <div class="bg-white p-4 rounded shadow">
+            <h2 class="text-lg font-semibold">Current Belt</h2>
+            <p class="text-2xl font-bold">
+                {% if graph_data %}{{ graph_data|last.belt }}{% else %}White{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="bg-white p-6 rounded shadow">
+        <canvas id="progressChart" class="w-full h-64"></canvas>
+    </div>
+</div>
+
+<script>
+const data = {{ graph_data|safe }};
+
+// Labels (dates)
+const labels = data.map(d => d.date);
+
+// Data points (total correct)
+const totalCorrect = data.map(d => d.total_correct);
+
+// Map belt names to colors
+const beltColors = {
+    "White": "#f3f4f6",
+    "Yellow": "#fde68a",
+    "Green": "#34d399",
+    "Blue": "#60a5fa",
+    "Brown": "#a0522d",
+    "Black": "#000000"
+};
+
+// Point background colors based on belt
+const pointColors = data.map(d => beltColors[d.belt] || "#f3f4f6");
+
+const ctx = document.getElementById('progressChart').getContext('2d');
+const progressChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Total Correct Attempts',
+            data: totalCorrect,
+            fill: false,
+            borderColor: 'rgb(34,197,94)',
+            backgroundColor: 'rgb(34,197,94)',
+            tension: 0.3,
+            pointBackgroundColor: pointColors,
+            pointBorderColor: pointColors,
+            pointRadius: 6
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { position: 'top' },
+            title: { display: true, text: 'Student Progress Over Time' },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const belt = data[context.dataIndex].belt;
+                        const correct = context.parsed.y;
+                        return `Correct: ${correct}, Belt: ${belt}`;
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                title: { display: true, text: 'Date & Time' }
+            },
+            y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Correct Attempts' }
+            }
+        }
+    }
+});
+</script>
+</body>
+</html>

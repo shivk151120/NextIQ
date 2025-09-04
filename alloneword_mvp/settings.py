@@ -124,3 +124,6 @@ AUTH_USER_MODEL = 'core.User'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 LOGIN_URL = '/accounts/login/'
+
+# in settings.py -> TEMPLATES[0]['OPTIONS']['context_processors'] add:
+"core.context_processors.site_settings",

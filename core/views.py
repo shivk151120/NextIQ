@@ -2,23 +2,24 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
-from .models import Phrase, Like, Comment, Attempt, Badge
+from django.db.models import Count, Q, Sum
+from django.views.decorators.http import require_POST
+from django.utils import timezone
 from django.contrib.auth import get_user_model
-from .forms import PhraseForm
 import json
-import random
+
+from .models import (
+    Phrase, Like, Comment, Attempt, User,
+    BeltAward, belt_for_correct, Example, SiteSetting, ParentLink
+)
+from .forms import PhraseForm, ExampleForm, SiteSettingForm, ParentLinkForm
 
 User = get_user_model()
 
-# Motivational messages pool
-MOTIVATION = [
-    "Excellent! Keep it up!",
-    "Great job! You're improving!",
-    "Well done! Practice makes perfect!",
-    "You're getting better every time!",
-    "Keep trying! Success is near!"
-]
 
+# -----------------------------
+# Home → role router
+# -----------------------------
 @login_required
 def home(request):
     if request.user.role in ['teacher', 'admin']:
@@ -26,80 +27,135 @@ def home(request):
     elif request.user.role == 'student':
         return student_dashboard(request)
     elif request.user.role == 'parent':
-        return render(request, "core/parent_dashboard.html")
-    else:
-        return render(request, "core/dashboard.html")
+        return parent_dashboard(request)
+    return render(request, "core/dashboard.html")
 
+
+# -----------------------------
+# Leaderboard data (JSON)
+# -----------------------------
+@login_required
+def leaderboard_data(_request):
+    # points = number of correct attempts
+    qs = (
+        Attempt.objects.filter(is_correct=True)
+        .values("user__username")
+        .annotate(points=Count("id"))
+        .order_by("-points", "user__username")
+    )
+    # compute belts per user
+    data = []
+    for row in qs:
+        points = row["points"]
+        belt = belt_for_correct(points)
+        data.append({
+            "username": row["user__username"],
+            "points": points,
+            "belt": belt,
+        })
+    return JsonResponse({"results": data})
+
+
+# -----------------------------
+# Teacher Dashboard
 # -----------------------------
 @login_required
 def teacher_dashboard(request):
     if request.user.role not in ['teacher', 'admin']:
         return redirect('home')
 
-    phrases = Phrase.objects.all()
-    students = User.objects.filter(role='student')
+    phrases = Phrase.objects.all().order_by("id")
+    attempts = Attempt.objects.select_related("user", "phrase").order_by('-attempt_date')
 
-    student_data = []
-    for student in students:
-        attempts = Attempt.objects.filter(user=student)
-        total_attempts = attempts.count()
-        correct_attempts = attempts.filter(is_correct=True).count()
-        points = correct_attempts  # 1 point per correct attempt
-        badges = student.badges.all()  # use related_name from Badge model
+    # leader data for top table preview
+    top = (
+        Attempt.objects.filter(is_correct=True)
+        .values("user__username")
+        .annotate(points=Count("id"))
+        .order_by("-points", "user__username")[:10]
+    )
 
-        student_data.append({
-            "student": student,
-            "total_attempts": total_attempts,
-            "correct_attempts": correct_attempts,
-            "points": points,
-            "badges": badges
-        })
+    # parent linking form (admin/teacher)
+    link_form = ParentLinkForm()
+    existing_links = ParentLink.objects.select_related("student", "parent").all()
 
-    # Sort by points descending for leaderboard
-    leaderboard = sorted(student_data, key=lambda x: x['points'], reverse=True)
-
-    # All attempts for table
-    attempts = Attempt.objects.all().order_by('-attempt_date')
+    # site settings quick-edit (admin only)
+    site_settings = SiteSetting.get()
+    site_form = SiteSettingForm(instance=site_settings) if request.user.role == 'admin' else None
 
     return render(request, "core/teacher_dashboard.html", {
         "phrases": phrases,
-        "student_data": student_data,
-        "leaderboard": leaderboard,
-        "attempts": attempts
+        "attempts": attempts,
+        "leader_preview": top,
+        "link_form": link_form,
+        "existing_links": existing_links,
+        "site_form": site_form,
     })
 
+
+# -----------------------------
+# Student Dashboard
+# -----------------------------
 @login_required
 def student_dashboard(request):
     if request.user.role != 'student':
         return redirect('home')
 
-    phrases = Phrase.objects.all()
-    attempts = Attempt.objects.filter(user=request.user).order_by('-attempt_date')
-    badges = [b.name for b in request.user.badges.all()]
+    phrases = Phrase.objects.all().order_by("id")
+    attempts = Attempt.objects.filter(user=request.user).select_related("phrase").order_by('-attempt_date')
     total_points = attempts.filter(is_correct=True).count()
+    current_belt = belt_for_correct(total_points)
 
     return render(request, "core/student_dashboard.html", {
         "phrases": phrases,
         "attempts": attempts,
-        "badges": badges,
-        "total_points": total_points
+        "total_points": total_points,
+        "current_belt": current_belt,
     })
 
+
+# -----------------------------
+# Parent Dashboard
+# -----------------------------
+@login_required
+def parent_dashboard(request):
+    if request.user.role != 'parent':
+        return redirect('home')
+
+    # show linked students' progress
+    students = User.objects.filter(linked_parents__parent=request.user).distinct()
+    data = []
+    for s in students:
+        attempts = Attempt.objects.filter(user=s).count()
+        correct = Attempt.objects.filter(user=s, is_correct=True).count()
+        data.append({
+            "student": s,
+            "total": attempts,
+            "correct": correct,
+            "belt": belt_for_correct(correct),
+        })
+
+    return render(request, "core/parent_dashboard.html", {"children": data})
+
+
+# -----------------------------
+# Practice page (button-driven)
+# -----------------------------
 @login_required
 def practice(request, phrase_id):
     phrase = get_object_or_404(Phrase, id=phrase_id)
 
     if request.method == "POST":
         if 'comment_text' in request.POST:
-            text = request.POST.get('comment_text')
-            if text:
-                Comment.objects.create(user=request.user, phrase=phrase, text=text)
-                messages.success(request, "Comment added successfully!")
+            txt = request.POST.get('comment_text', '').strip()
+            if txt:
+                Comment.objects.create(user=request.user, phrase=phrase, text=txt)
+                messages.success(request, "Comment added!")
             return redirect('practice', phrase_id=phrase.id)
         elif 'like' in request.POST:
-            existing_like = Like.objects.filter(user=request.user, phrase=phrase)
-            if existing_like.exists():
-                existing_like.delete()
+            like_qs = Like.objects.filter(user=request.user, phrase=phrase)
+            if like_qs.exists():
+                like_qs.delete()
             else:
                 Like.objects.create(user=request.user, phrase=phrase)
             return redirect('practice', phrase_id=phrase.id)
@@ -108,7 +164,6 @@ def practice(request, phrase_id):
     comments = Comment.objects.filter(phrase=phrase).order_by('-created_at')
     user_liked = Like.objects.filter(user=request.user, phrase=phrase).exists()
     user_attempts = Attempt.objects.filter(user=request.user, phrase=phrase).count()
-    motivation = random.choice(MOTIVATION)
 
     return render(request, "core/practice.html", {
         "phrase": phrase,
@@ -116,77 +171,241 @@ def practice(request, phrase_id):
         "comments": comments,
         "user_liked": user_liked,
         "user_attempts": user_attempts,
-        "motivation": motivation
+        "now": timezone.now(),
     })
 
+
+# Save attempt + award belts
 @login_required
-def toggle_like(request, phrase_id):
+@require_POST
+def save_attempt(request, phrase_id):
     phrase = get_object_or_404(Phrase, id=phrase_id)
-    existing_like = Like.objects.filter(user=request.user, phrase=phrase)
-    if existing_like.exists():
-        existing_like.delete()
-        liked = False
-    else:
-        Like.objects.create(user=request.user, phrase=phrase)
-        liked = True
+    data = json.loads(request.body.decode("utf-8"))
+    is_correct = bool(data.get("is_correct", False))
+    time_taken = int(data.get("time_taken", 0))
+
+    Attempt.objects.create(
+        user=request.user, phrase=phrase, is_correct=is_correct, time_taken=time_taken
+    )
+
+    # Evaluate belt
+    total_correct = Attempt.objects.filter(user=request.user, is_correct=True).count()
+    current_belt = belt_for_correct(total_correct)
+    # create belt award if new
+    if not BeltAward.objects.filter(user=request.user, name=current_belt).exists():
+        BeltAward.objects.create(user=request.user, name=current_belt)
+
     return JsonResponse({
-        "liked": liked,
-        "likes_count": Like.objects.filter(phrase=phrase).count()
+        "ok": True,
+        "total_correct": total_correct,
+        "belt": current_belt,
+        "points": total_correct
     })
 
+
+# -----------------------------
+# Phrase CRUD
+# -----------------------------
 @login_required
 def add_phrase(request):
     if request.user.role not in ['admin', 'teacher']:
         return redirect('home')
+
     if request.method == 'POST':
         form = PhraseForm(request.POST, request.FILES)
         if form.is_valid():
-            phrase = form.save(commit=False)
-            phrase.created_by = request.user
-            phrase.save()
+            p = form.save(commit=False)
+            p.created_by = request.user
+            p.save()
+            messages.success(request, "Phrase added.")
             return redirect('home')
     else:
         form = PhraseForm()
+
     return render(request, 'core/add_phrase.html', {'form': form})
+
 
 @login_required
 def edit_phrase(request, phrase_id):
     if request.user.role not in ['admin', 'teacher']:
         return redirect('home')
+
     phrase = get_object_or_404(Phrase, id=phrase_id)
     if request.method == 'POST':
         form = PhraseForm(request.POST, request.FILES, instance=phrase)
         if form.is_valid():
             form.save()
+            messages.success(request, "Phrase updated.")
             return redirect('home')
     else:
         form = PhraseForm(instance=phrase)
+
     return render(request, 'core/edit_phrase.html', {'form': form, 'phrase': phrase})
+
 
 @login_required
 def delete_phrase(request, phrase_id):
     if request.user.role not in ['admin', 'teacher']:
         return redirect('home')
-    phrase = get_object_or_404(Phrase, id=phrase_id)
-    phrase.delete()
+    get_object_or_404(Phrase, id=phrase_id).delete()
+    messages.success(request, "Phrase deleted.")
     return redirect('home')
 
+
+# -----------------------------
+# Admin: Site settings update
+# -----------------------------
 @login_required
-def save_attempt(request, phrase_id):
+def update_site_settings(request):
+    if request.user.role != 'admin':
+        return redirect('home')
+    settings_obj = SiteSetting.get()
     if request.method == "POST":
-        data = json.loads(request.body)
-        is_correct = data.get("is_correct", False)
-        time_taken = data.get("time_taken", 0)
-        phrase = get_object_or_404(Phrase, id=phrase_id)
+        form = SiteSettingForm(request.POST, request.FILES, instance=settings_obj)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Site settings saved.")
+            return redirect('home')
+    return redirect('home')
 
-        Attempt.objects.create(user=request.user, phrase=phrase, is_correct=is_correct, time_taken=time_taken)
 
-        # Award badges
-        total_correct = Attempt.objects.filter(user=request.user, is_correct=True).count()
-        if total_correct == 5:
-            Badge.objects.get_or_create(user=request.user, name="5 Correct Attempts")
-        elif total_correct == 10:
-            Badge.objects.get_or_create(user=request.user, name="10 Correct Attempts")
+# -----------------------------
+# Parent linking
+# -----------------------------
+@login_required
+def add_parent_link(request):
+    if request.user.role not in ['admin', 'teacher']:
+        return redirect('home')
+    if request.method == "POST":
+        form = ParentLinkForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Parent linked to student.")
+    return redirect('home')
 
-        return JsonResponse({"status": "success"})
-    return JsonResponse({"status": "failed"}, status=400)
+
+@login_required
+def delete_parent_link(request, link_id):
+    if request.user.role not in ['admin', 'teacher']:
+        return redirect('home')
+    ParentLink.objects.filter(id=link_id).delete()
+    messages.success(request, "Link removed.")
+    return redirect('home')
+
+
+# -----------------------------
+# Examples hub
+# -----------------------------
+@login_required
+def examples_list(_request):
+    items = Example.objects.all().order_by("-id")
+    return render(_request, "core/examples_list.html", {"items": items})
+
+
+@login_required
+def example_detail(_request, example_id):
+    item = get_object_or_404(Example, id=example_id)
+    return render(_request, "core/example_detail.html", {"item": item})
+
+
+# -----------------------------
+# Static pages
+# -----------------------------
+@login_required
+def about(_request):
+    return render(request, "core/about.html")
+
+
+@login_required
+def contact(_request):
+    return render(request, "core/contact.html")
+
+
+def about_page(request):
+    return render(request, "core/about.html")
+
+
+def examples_page(request):
+    return render(request, "core/examples.html")
+
+
+def contact_page(request):
+    return render(request, "core/contact.html")
+
+
+# ==============================
+# LINK STUDENT TO PARENT
+# ==============================
+def link_student_parent(request):
+    if request.method == "POST":
+        student_id = request.POST.get('student_id')
+        parent_id = request.POST.get('parent_id')
+
+        try:
+            student = User.objects.get(id=student_id, role='student')
+            parent = User.objects.get(id=parent_id, role='parent')
+
+            student.parent = parent
+            student.save()
+
+            messages.success(request, f"Successfully linked {student.username} to {parent.username}!")
+            return redirect('manage_links')
+
+        except User.DoesNotExist:
+            messages.error(request, "Invalid student or parent selection. Please try again.")
+
+    students = User.objects.filter(role='student')
+    parents = User.objects.filter(role='parent')
+
+    return render(request, 'core/link_student_parent.html', {
+        'students': students,
+        'parents': parents
+    })
+
+
+def manage_links(request):
+    linked_students = User.objects.filter(role='student', parent__isnull=False)
+    return render(request, 'core/manage_links.html', {'linked_students': linked_students})
+
+
+# ==============================
+# Leaderboard
+# ==============================
+def leaderboard(request):
+    """
+    Displays leaderboard showing students ordered by points
+    and belt achievements.
+    """
+    students = User.objects.filter(role='student').annotate(
+        total_correct=Count('attempts', filter=Q(attempts__is_correct=True))
+    ).order_by('-total_correct', 'username')
+
+    return render(request, 'core/leaderboard.html', {'students': students})
+@login_required
+def progress_graph(request, student_id):
+    # Only allow teacher/admin or the student themselves to view
+    student = get_object_or_404(User, id=student_id, role='student')
+    if request.user.role not in ['teacher', 'admin'] and request.user != student:
+        return redirect('home')
+
+    # Get all attempts for this student
+    attempts = Attempt.objects.filter(user=student).order_by('attempt_date')
+
+    # Prepare data for graph
+    graph_data = []
+    correct_count = 0
+    for att in attempts:
+        if att.is_correct:
+            correct_count += 1
+        graph_data.append({
+            "date": att.attempt_date.strftime("%Y-%m-%d %H:%M"),
+            "correct": att.is_correct,
+            "total_correct": correct_count,
+            "belt": belt_for_correct(correct_count),
+        })
+
+    return render(request, 'core/progress_graph.html', {
+        'student': student,
+        'graph_data': graph_data,
+    })
+

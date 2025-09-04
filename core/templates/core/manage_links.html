@@ -1,0 +1,27 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <h3>Manage Student-Parent Links</h3>
+
+    <table class="table table-bordered table-striped">
+        <thead class="table-dark">
+            <tr>
+                <th>Student</th>
+                <th>Parent</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in linked_students %}
+            <tr>
+                <td>{{ student.username }}</td>
+                <td>{{ student.parent.username }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="2">No student-parent links found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

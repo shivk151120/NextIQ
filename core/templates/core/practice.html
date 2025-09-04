@@ -1,44 +1,50 @@
 {% extends 'core/base.html' %}
 {% block content %}
 <div class="container mt-5">
-  <h3>Practice Phrase</h3>
+  <h3 class="mb-4">Practice Phrase</h3>
+
+  <!-- Instruction -->
+  <div class="alert alert-info text-center">
+    <strong>Fix this alloneword text using the buttons below.</strong>
+  </div>
 
   <!-- Phrase & Audio -->
-  <div class="mb-3">
-    <p id="targetPhrase">{{ phrase.text }}</p>
+  <div class="mb-3 text-center">
+    <p id="targetPhrase" class="fs-4">{{ phrase.text }}</p>
     {% if phrase.audio %}
-    <audio controls>
-      <source src="{{ phrase.audio.url }}" type="audio/mpeg">
-      Your browser does not support the audio element.
-    </audio>
+      <audio controls class="mt-2">
+        <source src="{{ phrase.audio.url }}" type="audio/mpeg">
+        Your browser does not support the audio element.
+      </audio>
     {% endif %}
   </div>
 
   <!-- Typing Output -->
   <div class="mb-3">
-    <div id="output" class="border p-2" style="min-height:50px; font-size:1.5rem;"></div>
+    <div id="output" class="border rounded p-2 bg-light"
+         style="min-height:50px; font-size:1.5rem; text-align:center;"></div>
   </div>
 
-  <!-- Motivational Hint -->
-  <div class="mb-3">
-    <span id="hint" style="font-weight:bold; color:#ff4500;"></span>
+  <!-- Motivational / Error Hint -->
+  <div class="mb-3 text-center">
+    <span id="hint" style="font-weight:bold; color:#d9534f;"></span>
   </div>
 
   <!-- Progress Bar -->
   <div class="progress mb-3">
-    <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+    <div id="progressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
   </div>
 
   <!-- Typing Buttons -->
-  <div class="mb-3">
+  <div class="mb-3 text-center">
     <div class="mb-2">
       <button class="btn btn-primary me-2 mb-2" onclick="addChar('capitalize')">Capitalize</button>
-      <button class="btn btn-success me-2 mb-2" onclick="addChar('next')">Next</button>
       <button class="btn btn-warning me-2 mb-2" onclick="addChar('space')">Space</button>
-      <button class="btn btn-info me-2 mb-2" onclick="addChar('fullstop')">Full Stop</button>
+      <button class="btn btn-info me-2 mb-2" onclick="addChar('comma')">Comma</button>
+      <button class="btn btn-secondary me-2 mb-2" onclick="addChar('fullstop')">Full Stop</button>
     </div>
     <div>
-      <button class="btn btn-secondary me-2 mb-2" onclick="addChar('comma')">Comma</button>
+      <button class="btn btn-success me-2 mb-2" onclick="addChar('next')">Next</button>
       <button class="btn btn-danger me-2 mb-2" onclick="restart()">Restart</button>
       <button class="btn btn-dark me-2 mb-2" onclick="startTimer()">Start Timer</button>
       <button class="btn btn-dark mb-2" onclick="stopTimer()">Stop Timer</button>
@@ -46,52 +52,48 @@
   </div>
 
   <!-- Timer & Attempts -->
-  <div class="mb-3">
+  <div class="mb-3 text-center">
     Time: <span id="timer">0</span> seconds | Attempts: <span id="attemptCount">{{ user_attempts }}</span>
   </div>
 
-  <!-- Likes -->
+  <!-- Comments Section -->
   <div class="mb-3">
-      <form method="post">
-          {% csrf_token %}
-          <button type="submit" name="like" class="btn btn-outline-primary">
-            {% if user_liked %}❤️ Liked{% else %}♡ Like{% endif %}
-          </button>
-          <span id="likesCount">{{ likes_count }}</span> likes
-      </form>
+    <h5>Comments</h5>
+    <form method="post">
+      {% csrf_token %}
+      <input type="text" name="comment_text" class="form-control" placeholder="Add a comment" required>
+      <button type="submit" class="btn btn-success mt-2">Comment</button>
+    </form>
+    <ul class="list-group mt-2">
+      {% for comment in comments %}
+        <li class="list-group-item">
+          <strong>{{ comment.user.username }}:</strong> {{ comment.text }}
+        </li>
+      {% empty %}
+        <li class="list-group-item">No comments yet.</li>
+      {% endfor %}
+    </ul>
   </div>
 
-  <!-- Comments -->
-  <div class="mb-3">
-      <h5>Comments</h5>
-      <form method="post">
-          {% csrf_token %}
-          <input type="text" name="comment_text" class="form-control" placeholder="Add a comment" required>
-          <button type="submit" class="btn btn-success mt-2">Comment</button>
-      </form>
-      <ul class="list-group mt-2">
-          {% for comment in comments %}
-              <li class="list-group-item"><strong>{{ comment.user.username }}:</strong> {{ comment.text }}</li>
-          {% empty %}
-              <li class="list-group-item">No comments yet.</li>
-          {% endfor %}
-      </ul>
-  </div>
-
+  <!-- Back Button -->
   <div class="mt-3">
-      <a href="{% url 'home' %}" class="btn btn-outline-secondary">Back to Dashboard</a>
+    <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+      ← Back to Dashboard
+    </a>
   </div>
 </div>
 
+<!-- Styles -->
 <style>
-.correct { color: green; }
-.wrong { color: red; }
-button.btn:hover { opacity: 0.8; transition: 0.2s; }
-.progress-bar { background-color: #28a745; }
+.correct { color: green; font-weight: bold; }
+.wrong { color: red; font-weight: bold; }
+button.btn:hover { opacity: 0.85; transition: 0.2s; }
+.progress-bar { transition: width 0.3s ease; }
 </style>
 
+<!-- Script -->
 <script>
-let target = document.getElementById("targetPhrase").innerText;
+let target = document.getElementById("targetPhrase").innerText.trim();
 let outputDiv = document.getElementById("output");
 let progressBar = document.getElementById("progressBar");
 let hintDiv = document.getElementById("hint");
@@ -101,83 +103,100 @@ let timer = 0;
 let timerInterval = null;
 let attempts = {{ user_attempts|default:0 }};
 
-// Timer
+// Start Timer
 function startTimer() {
-    if(timerInterval) return;
-    timerInterval = setInterval(() => {
-        timer++;
-        document.getElementById("timer").innerText = timer;
-    }, 1000);
+  if (timerInterval) return;
+  timerInterval = setInterval(() => {
+    timer++;
+    document.getElementById("timer").innerText = timer;
+  }, 1000);
 }
+
+// Stop Timer
 function stopTimer() {
-    clearInterval(timerInterval);
-    timerInterval = null;
+  clearInterval(timerInterval);
+  timerInterval = null;
 }
 
-// Restart
+// Restart everything
 function restart() {
-    output = "";
-    currentIndex = 0;
-    timer = 0;
-    stopTimer();
-    outputDiv.innerHTML = "";
-    progressBar.style.width = "0%";
-    hintDiv.innerText = "";
+  output = "";
+  currentIndex = 0;
+  timer = 0;
+  stopTimer();
+  outputDiv.innerHTML = "";
+  progressBar.style.width = "0%";
+  hintDiv.innerText = "";
+  document.getElementById("timer").innerText = "0";
 }
 
-// Button click logic
-function addChar(action){
-    if(currentIndex >= target.length) return;
+// Button Action Logic
+function addChar(action) {
+  if (currentIndex >= target.length) return;
 
-    let char = target[currentIndex];
-    let correct = false;
-    let hint = "";
+  let expectedChar = target[currentIndex];
+  let correct = false;
+  let hint = "";
 
-    if(action === 'capitalize') correct = (char === char.toUpperCase() && char.match(/[A-Z]/));
-    else if(action === 'next') correct = true;
-    else if(action === 'space') correct = (char === ' ');
-    else if(action === 'fullstop') correct = (char === '.');
-    else if(action === 'comma') correct = (char === ',');
+  // Check correctness
+  if (action === 'capitalize') {
+    correct = expectedChar.match(/[A-Z]/); // Only correct if char is uppercase
+    if (!correct) hint = "⚠ This letter must be capitalized!";
+  }
+  else if (action === 'space') {
+    correct = (expectedChar === ' ');
+    if (!correct) hint = "⚠ Space expected here!";
+  }
+  else if (action === 'comma') {
+    correct = (expectedChar === ',');
+    if (!correct) hint = "⚠ Comma expected here!";
+  }
+  else if (action === 'fullstop') {
+    correct = (expectedChar === '.');
+    if (!correct) hint = "⚠ Full stop expected here!";
+  }
+  else if (action === 'next') {
+    correct = expectedChar.match(/[a-z]/); // lowercase regular letters
+    if (!correct) hint = "⚠ Expected a lowercase letter!";
+  }
 
-    // Add char to output
-    output += correct ? `<span class="correct">${char}</span>` : `<span class="wrong">${char}</span>`;
-    currentIndex++;
+  // Update Output
+  output += correct
+    ? `<span class="correct">${expectedChar}</span>`
+    : `<span class="wrong">${expectedChar}</span>`;
+  currentIndex++;
 
-    // Update output & progress
-    outputDiv.innerHTML = output;
-    progressBar.style.width = Math.round((currentIndex / target.length) * 100) + "%";
+  outputDiv.innerHTML = output;
+  hintDiv.innerText = hint;
 
-    // Give hint
-    if(!correct){
-        if(char.match(/[A-Z]/)) hint = "⚠ Capitalization wrong!";
-        else if(char === ' ') hint = "⚠ Space missing!";
-        else if(char === ',') hint = "⚠ Comma missing!";
-        else if(char === '.') hint = "⚠ Full stop missing!";
-        else hint = "⚠ Check spelling!";
+  // Update progress
+  let progress = Math.round((currentIndex / target.length) * 100);
+  progressBar.style.width = progress + "%";
+
+  // Finish
+  if (currentIndex >= target.length) {
+    stopTimer();
+    attempts++;
+    document.getElementById("attemptCount").innerText = attempts;
+    if (hint === "") {
+      alert("✅ Perfect! Phrase Completed in " + timer + " seconds.");
+    } else {
+      alert("⚠ Phrase completed, but with errors. Try again!");
     }
-    hintDiv.innerText = hint;
-
-    // Completed
-    if(currentIndex >= target.length){
-        stopTimer();
-        attempts++;
-        document.getElementById("attemptCount").innerText = attempts;
-        alert("✅ Phrase Completed! Time: " + timer + " seconds 🎉");
-        hintDiv.innerText = "🎉 Great job! Keep practicing!";
-        saveAttempt(correct);
-    }
+    saveAttempt(hint === "");
+  }
 }
 
 // Save attempt to backend
-function saveAttempt(isCorrect){
-    fetch("{% url 'save_attempt' phrase.id %}", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": "{{ csrf_token }}"
-        },
-        body: JSON.stringify({is_correct: isCorrect, time_taken: timer})
-    });
+function saveAttempt(isCorrect) {
+  fetch("{% url 'save_attempt' phrase.id %}", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRFToken": "{{ csrf_token }}"
+    },
+    body: JSON.stringify({ is_correct: isCorrect, time_taken: timer })
+  });
 }
 </script>
 {% endblock %}

@@ -1,0 +1,30 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <h3>Link Student to Parent</h3>
+    <form method="POST">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="student_id" class="form-label">Select Student:</label>
+            <select name="student_id" id="student_id" class="form-control" required>
+                <option value="">-- Choose Student --</option>
+                {% for student in students %}
+                    <option value="{{ student.id }}">{{ student.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label for="parent_id" class="form-label">Select Parent:</label>
+            <select name="parent_id" id="parent_id" class="form-control" required>
+                <option value="">-- Choose Parent --</option>
+                {% for parent in parents %}
+                    <option value="{{ parent.id }}">{{ parent.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-success">Link Student to Parent</button>
+    </form>
+</div>
+{% endblock %}

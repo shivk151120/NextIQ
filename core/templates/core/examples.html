@@ -1,0 +1,31 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Examples</h2>
+    <p>Select an example to view details:</p>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <img src="/static/images/example1.png" class="card-img-top" alt="Example 1">
+                <div class="card-body">
+                    <h5 class="card-title">Example 1</h5>
+                    <p class="card-text">Learn about sentence corrections.</p>
+                    <a href="#" class="btn btn-primary">View Example</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <img src="/static/images/example2.png" class="card-img-top" alt="Example 2">
+                <div class="card-body">
+                    <h5 class="card-title">Example 2</h5>
+                    <p class="card-text">Practice punctuation and grammar.</p>
+                    <a href="#" class="btn btn-primary">View Example</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

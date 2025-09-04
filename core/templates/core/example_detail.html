@@ -1,0 +1,26 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>{{ item.title }}</h3>
+    <a class="btn btn-outline-secondary back-link" href="{% url 'examples_list' %}">← Back</a>
+  </div>
+
+  {% if item.image %}
+    <img src="{{ item.image.url }}" class="img-fluid rounded mb-3" alt="{{ item.title }}">
+  {% endif %}
+
+  {% if item.content %}
+    <div class="card mb-3"><div class="card-body">{{ item.content|linebreaks }}</div></div>
+  {% endif %}
+
+  <div class="d-flex gap-2">
+    {% if item.link_phrase %}
+      <a href="{% url 'practice' item.link_phrase.id %}" class="btn btn-primary">Practice Linked Phrase</a>
+    {% endif %}
+    {% if item.external_url %}
+      <a href="{{ item.external_url }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">Open Link</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
