@@ -1,0 +1,51 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="container my-5">
+
+  <!-- Lesson Card -->
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+
+      <!-- Lesson Title -->
+      <h2 class="card-title text-center mb-4">{{ lesson.title }}</h2>
+
+      <!-- Audio -->
+      {% if lesson.audio %}
+      <div class="mb-4 d-flex justify-content-center">
+        <audio controls class="w-100">
+          <source src="{{ lesson.audio.url }}" type="audio/mpeg">
+          Your browser does not support the audio element.
+        </audio>
+      </div>
+      {% endif %}
+
+      <!-- Description -->
+      <div class="mb-4">
+        <p class="fs-5">{{ lesson.description }}</p>
+      </div>
+
+      <!-- Image -->
+      {% if lesson.image %}
+      <div class="text-center">
+        <img src="{{ lesson.image.url }}" alt="{{ lesson.title }}" class="img-fluid rounded shadow-sm">
+      </div>
+      {% endif %}
+
+      <!-- Back Button -->
+      <div class="mt-4 text-center">
+        <a href="{% url 'student_dashboard' %}" class="btn btn-secondary">← Back to Dashboard</a>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Optional: responsive adjustments -->
+<style>
+  @media (max-width: 576px) {
+    .card-body h2 { font-size: 1.5rem; }
+    .card-body p { font-size: 1rem; }
+  }
+</style>
+{% endblock %}

@@ -1,69 +1,96 @@
 {% extends 'core/base.html' %}
 {% block content %}
-<div class="container">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>Student Dashboard</h3>
-    <a class="btn btn-outline-secondary back-link" href="{% url 'home' %}">← Back</a>
+<div class="container my-5">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold">Student Dashboard</h3>
+    <a class="btn btn-outline-secondary" href="{% url 'home' %}">← Back</a>
   </div>
 
-  <div class="row gy-3">
-    <!-- Points & Belt Card -->
+  <!-- Stats & Progress -->
+  <div class="row g-3">
+
+    <!-- Points & Belt -->
     <div class="col-12 col-lg-4">
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h5>Your Points: <span class="badge text-bg-primary">{{ total_points }}</span></h5>
-          <h6 class="mt-2">Current Belt:
-            <span class="badge text-bg-dark">{{ current_belt }}</span>
-          </h6>
-          <button class="btn btn-outline-primary mt-3" data-bs-toggle="modal" data-bs-target="#leaderboardModal">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body text-center">
+          <h5>Your Points</h5>
+          <span class="badge bg-primary display-6">{{ total_points }}</span>
+
+          <h6 class="mt-3">Current Belt</h6>
+          <span class="badge bg-dark fs-6">{{ current_belt }}</span>
+
+          <button class="btn btn-outline-success mt-4" data-bs-toggle="modal" data-bs-target="#leaderboardModal">
             View Leaderboard
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Progress Chart Card -->
+    <!-- Progress Chart -->
     <div class="col-12 col-lg-8">
-      <div class="card shadow-sm">
+      <div class="card shadow-sm border-0 h-100">
         <div class="card-body">
           <h5 class="mb-3">Your Progress</h5>
-          <canvas id="progressChart" height="110"></canvas>
+          <canvas id="progressChart" height="120"></canvas>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Practice Phrases -->
-  <div class="card shadow-sm mt-4">
+  <div class="card shadow-sm border-0 mt-4">
     <div class="card-body">
-      <h5>Your Practice Phrases</h5>
-      <ul class="list-group mt-2">
+      <h5 class="mb-3">Practice Phrases</h5>
+      <ul class="list-group list-group-flush">
         {% for phrase in phrases %}
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-            <span>{{ phrase.text }}</span>
-            <a href="{% url 'practice' phrase.id %}" class="btn btn-primary btn-sm">Practice</a>
-          </li>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>{{ phrase.text }}</span>
+          <a href="{% url 'practice' phrase.id %}" class="btn btn-primary btn-sm">Practice</a>
+        </li>
         {% empty %}
-          <li class="list-group-item">No phrases available.</li>
+        <li class="list-group-item">No phrases available.</li>
         {% endfor %}
       </ul>
     </div>
   </div>
+
+  <!-- Lessons Section -->
+  <div class="card shadow-sm border-0 mt-4">
+    <div class="card-body">
+      <h5 class="mb-3">Lessons</h5>
+      <ul class="list-group list-group-flush">
+        {% for lesson in lessons %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>{{ lesson.title }}</span>
+          <a href="{% url 'lesson_detail' lesson.id %}" class="btn btn-success btn-sm">Open</a>
+        </li>
+        {% empty %}
+        <li class="list-group-item">No lessons available.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
 </div>
 
 <!-- Leaderboard Modal -->
 <div class="modal fade" id="leaderboardModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
+    <div class="modal-content border-0 shadow-sm">
+      <div class="modal-header bg-dark text-white">
         <h5 class="modal-title">Leaderboard</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <table class="table table-striped table-bordered">
+        <table class="table table-hover table-bordered align-middle mb-0">
           <thead class="table-dark">
             <tr>
-              <th>#</th><th>Student</th><th>Points</th><th>Belt</th>
+              <th>#</th>
+              <th>Student</th>
+              <th>Points</th>
+              <th>Belt</th>
             </tr>
           </thead>
           <tbody id="leaderRows"></tbody>
@@ -74,62 +101,60 @@
 </div>
 
 <script>
-// Load leaderboard on modal open
-const lbModal = document.getElementById('leaderboardModal');
-lbModal.addEventListener('show.bs.modal', () => {
-  fetch("{% url 'leaderboard_data' %}")
-    .then(r => r.json())
-    .then(({results}) => {
-      const body = document.getElementById('leaderRows');
-      body.innerHTML = "";
-      results.forEach((row, idx) => {
-        body.innerHTML += `
-          <tr>
-            <td>${idx+1}</td>
-            <td>${row.username}</td>
-            <td>${row.points}</td>
-            <td><span class="badge text-bg-dark">${row.belt}</span></td>
-          </tr>`;
+  // Leaderboard fetch
+  const lbModal = document.getElementById('leaderboardModal');
+  lbModal.addEventListener('show.bs.modal', () => {
+    fetch("{% url 'leaderboard_data' %}")
+      .then(r => r.json())
+      .then(({results}) => {
+        const body = document.getElementById('leaderRows');
+        body.innerHTML = "";
+        results.forEach((row, idx) => {
+          body.innerHTML += `
+            <tr>
+              <td>${idx+1}</td>
+              <td>${row.username}</td>
+              <td>${row.points}</td>
+              <td><span class="badge bg-dark">${row.belt}</span></td>
+            </tr>`;
+        });
       });
-    });
-});
+  });
 
-// Progress chart (cumulative correct vs total)
-const raw = [
-  {% for a in attempts reversed %}
+  // Progress Chart
+  const raw = [
+    {% for a in attempts reversed %}
     {
       "d": "{{ a.attempt_date|date:'Y-m-d H:i' }}",
-      {% if a.is_correct %}
-      "c": 1,
-      {% else %}
-      "c": 0,
-      {% endif %}
+      "c": {{ a.is_correct|yesno:"1,0" }},
       "t": 1
     },
-  {% endfor %}
-];
+    {% endfor %}
+  ];
 
-const labels = raw.map(x => x.d);
-let cumCorrect = 0, cumTotal = 0;
-const correctSeries = raw.map(x => { cumCorrect += x.c; return cumCorrect; });
-const totalSeries   = raw.map(x => { cumTotal += x.t; return cumTotal; });
+  const labels = raw.map(x => x.d);
+  let cumCorrect = 0, cumTotal = 0;
+  const correctSeries = raw.map(x => { cumCorrect += x.c; return cumCorrect; });
+  const totalSeries   = raw.map(x => { cumTotal += x.t; return cumTotal; });
 
-const ctx = document.getElementById('progressChart');
-new Chart(ctx, {
-  type: 'line',
-  data: {
-    labels,
-    datasets: [
-      { label: 'Correct (cumulative)', data: correctSeries, borderColor: 'green', tension: 0.2 },
-      { label: 'Attempts (cumulative)', data: totalSeries, borderColor: 'blue', tension: 0.2 },
-    ]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { position: 'top' }
+  new Chart(document.getElementById('progressChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Correct (Cumulative)', data: correctSeries, borderColor: '#28a745', backgroundColor: 'rgba(40,167,69,0.2)', fill: true, tension: 0.3 },
+        { label: 'Attempts (Cumulative)', data: totalSeries, borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.2)', fill: true, tension: 0.3 },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top' }
+      },
+      scales: {
+        y: { beginAtZero: true }
+      }
     }
-  }
-});
+  });
 </script>
 {% endblock %}

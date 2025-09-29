@@ -1,5 +1,5 @@
 from django import forms
-from .models import Phrase, Example, SiteSetting, ParentLink, User
+from .models import Phrase, Example, SiteSetting, ParentLink, User, Lesson
 
 class PhraseForm(forms.ModelForm):
     class Meta:
@@ -25,3 +25,25 @@ class ParentLinkForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["student"].queryset = User.objects.filter(role="student")
         self.fields["parent"].queryset = User.objects.filter(role="parent")
+
+class SiteSettingForm(forms.ModelForm):
+    class Meta:
+        model = SiteSetting
+        fields = '__all__'
+
+
+class LessonForm(forms.ModelForm):
+    class Meta:
+        model = Lesson
+        fields = ['title', 'description', 'audio', 'image']  # Added image
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'audio': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'image': forms.ClearableFileInput(attrs={'class': 'form-control'}),  # Added image widget
+        }
+
+class ExampleForm(forms.ModelForm):
+    class Meta:
+        model = Example
+        fields = ['title', 'summary', 'content', 'image', 'link_phrase', 'external_url']

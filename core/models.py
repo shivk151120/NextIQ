@@ -1,9 +1,9 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.conf import settings
 
 # -----------------------------
-# Custom User with role
+# Custom User
 # -----------------------------
 class User(AbstractUser):
     ROLE_CHOICES = [
@@ -13,7 +13,8 @@ class User(AbstractUser):
         ('parent', 'Parent'),
     ]
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student')
-    # New field to link a parent to a student
+
+    # Link parent to student
     parent = models.ForeignKey(
         'self',
         null=True,
@@ -22,9 +23,24 @@ class User(AbstractUser):
         related_name='children'
     )
 
+    # Avoid clashes with auth.User groups and permissions
+    groups = models.ManyToManyField(
+        Group,
+        related_name='core_user_set',
+        blank=True,
+        help_text='The groups this user belongs to.',
+        verbose_name='groups',
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        related_name='core_user_permissions_set',
+        blank=True,
+        help_text='Specific permissions for this user.',
+        verbose_name='user permissions',
+    )
+
     def __str__(self):
         return self.username
-
 
 # -----------------------------
 # Site-wide editable footer + banner
@@ -52,36 +68,33 @@ class SiteSetting(models.Model):
             obj = cls.objects.create()
         return obj
 
-
 # -----------------------------
-# Content (curriculum)
+# Curriculum Content
 # -----------------------------
 class Phrase(models.Model):
     text = models.CharField(max_length=255)
     audio = models.FileField(upload_to="audio/", blank=True, null=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="phrases")
-    acara_code = models.CharField(max_length=50, blank=True, default="")  # optional curriculum tag
+    acara_code = models.CharField(max_length=50, blank=True, default="")
 
     def __str__(self):
         return self.text
 
-
 # -----------------------------
-# Student Attempts (assessment)
+# Student Attempts
 # -----------------------------
 class Attempt(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="attempts")
     phrase = models.ForeignKey(Phrase, on_delete=models.CASCADE, related_name="attempts")
     is_correct = models.BooleanField(default=False)
-    time_taken = models.IntegerField(default=0)  # seconds
+    time_taken = models.IntegerField(default=0)
     attempt_date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.user.username} - {self.phrase.text[:20]}"
 
-
 # -----------------------------
-# “Belts” Gamification
+# Gamification Belts
 # -----------------------------
 BELTS = [
     (0, "White"),
@@ -101,7 +114,7 @@ def belt_for_correct(correct_count: int) -> str:
 
 class BeltAward(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="belt_awards")
-    name = models.CharField(max_length=50)  # White/Yellow/Green/...
+    name = models.CharField(max_length=50)
     awarded_on = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -109,7 +122,6 @@ class BeltAward(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.name} Belt"
-
 
 # -----------------------------
 # Parent ↔ Student linking
@@ -123,7 +135,6 @@ class ParentLink(models.Model):
 
     def __str__(self):
         return f"{self.student.username} ↔ {self.parent.username}"
-
 
 # -----------------------------
 # Comments / Likes
@@ -139,7 +150,6 @@ class Comment(models.Model):
         username = self.user.username if self.user else "Deleted User"
         return f"{username} - {phrase_text}"
 
-
 class Like(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="likes")
     phrase = models.ForeignKey(Phrase, on_delete=models.CASCADE, related_name="likes")
@@ -153,17 +163,26 @@ class Like(models.Model):
         username = self.user.username if self.user else "Deleted User"
         return f"{username} liked '{phrase_text}'"
 
-
 # -----------------------------
-# Examples hub (cards → detail)
+# Examples / Lessons
 # -----------------------------
 class Example(models.Model):
     title = models.CharField(max_length=200)
     image = models.ImageField(upload_to="examples/", null=True, blank=True)
     summary = models.CharField(max_length=300, blank=True, default="")
-    content = models.TextField(blank=True, default="")           # essay/instructions
+    content = models.TextField(blank=True, default="")
     link_phrase = models.ForeignKey(Phrase, null=True, blank=True, on_delete=models.SET_NULL)
-    external_url = models.URLField(blank=True, default="")       # optional
+    external_url = models.URLField(blank=True, default="")
+
+    def __str__(self):
+        return self.title
+
+
+class Lesson(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    audio = models.FileField(upload_to='lesson_audio/', blank=True, null=True)
+    image = models.ImageField(upload_to='lesson_images/', blank=True, null=True)
 
     def __str__(self):
         return self.title

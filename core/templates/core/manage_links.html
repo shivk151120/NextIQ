@@ -8,6 +8,7 @@
             <tr>
                 <th>Student</th>
                 <th>Parent</th>
+                <th>Action</th>
             </tr>
         </thead>
         <tbody>
@@ -15,10 +16,15 @@
             <tr>
                 <td>{{ student.username }}</td>
                 <td>{{ student.parent.username }}</td>
+                <td>
+                    <a href="{% url 'delete_parent_link' student.id %}" class="btn btn-danger btn-sm">
+                        Unlink
+                    </a>
+                </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="2">No student-parent links found.</td>
+                <td colspan="3">No student-parent links found.</td>
             </tr>
             {% endfor %}
         </tbody>

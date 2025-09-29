@@ -1,10 +1,127 @@
 {% extends 'core/base.html' %}
 {% block content %}
-<div class="container mt-5">
-  <h3>Parent Dashboard</h3>
-  <p>Welcome, {{ request.user.username }}!</p>
+<div class="container my-5">
 
-  <h5 class="mt-4">Student Reports:</h5>
-  <p>Coming soon: you will see your child's progress, attempts, and badges here.</p>
+  <h3 class="fw-bold mb-4">Parent Dashboard</h3>
+
+  {% if students_data %}
+    <div class="row">
+      {% for data in students_data %}
+        <div class="col-12 col-md-6 mb-4">
+          <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+              <h5 class="card-title">{{ data.student.username }}</h5>
+              <p class="mb-1"><strong>Total Attempts:</strong> {{ data.total_attempts }}</p>
+              <p class="mb-1"><strong>Correct Attempts:</strong> {{ data.correct_attempts }}</p>
+              <p class="mb-1"><strong>Current Belt:</strong>
+                <span class="badge bg-dark">{{ data.current_belt }}</span>
+              </p>
+
+              <!-- Progress Chart -->
+              <canvas id="chart-{{ data.student.id }}" height="100" class="my-3"></canvas>
+
+              <!-- Recent Attempts -->
+              <h6 class="mt-3">Recent Attempts</h6>
+              {% if data.attempts %}
+                <ul class="list-group list-group-flush">
+                  {% for attempt in data.attempts %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                      {{ attempt.phrase.text }}
+                      {% if attempt.is_correct %}
+                        <span class="badge bg-success">Correct</span>
+                      {% else %}
+                        <span class="badge bg-danger">Wrong</span>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p class="text-muted">No attempts yet.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Leaderboard Button -->
+    <div class="text-center mt-4">
+      <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#leaderboardModal">
+        View Leaderboard
+      </button>
+    </div>
+
+  {% else %}
+    <p class="text-muted">No linked students found.</p>
+  {% endif %}
 </div>
+
+<!-- Leaderboard Modal -->
+<div class="modal fade" id="leaderboardModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content border-0 shadow-sm">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title">Leaderboard</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-hover table-bordered align-middle mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>#</th>
+              <th>Student</th>
+              <th>Points</th>
+              <th>Belt</th>
+            </tr>
+          </thead>
+          <tbody id="leaderRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Load leaderboard dynamically
+document.getElementById('leaderboardModal').addEventListener('show.bs.modal', () => {
+  fetch("{% url 'leaderboard_data' %}")
+    .then(r => r.json())
+    .then(({results}) => {
+      const body = document.getElementById('leaderRows');
+      body.innerHTML = "";
+      results.forEach((row, idx) => {
+        body.innerHTML += `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${row.username}</td>
+            <td>${row.points}</td>
+            <td><span class="badge bg-dark">${row.belt}</span></td>
+          </tr>`;
+      });
+    });
+});
+
+// Generate charts for each student
+{% for data in students_data %}
+const chartData{{ data.student.id }} = {
+  labels: [{% for c in data.chart_data %}"{{ c.date }}",{% endfor %}],
+  datasets: [
+    {
+      label: 'Cumulative Correct',
+      data: [{% for c in data.chart_data %}{{ c.total_correct }},{% endfor %}],
+      borderColor: '#28a745',
+      backgroundColor: 'rgba(40,167,69,0.2)',
+      fill: true,
+      tension: 0.3
+    }
+  ]
+};
+new Chart(document.getElementById('chart-{{ data.student.id }}'), {
+  type: 'line',
+  data: chartData{{ data.student.id }},
+  options: { responsive: true, scales: { y: { beginAtZero: true } } }
+});
+{% endfor %}
+</script>
 {% endblock %}
+

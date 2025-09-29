@@ -7,13 +7,21 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 import json
+from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from .models import SiteSetting
+from .forms import SiteSettingForm
+
+from .forms import ExampleForm
 
 from .models import (
-    Phrase, Like, Comment, Attempt, User,
+    Phrase, Like, Comment, Attempt, User, Lesson,
     BeltAward, belt_for_correct, Example, SiteSetting, ParentLink
 )
-from .forms import PhraseForm, ExampleForm, SiteSettingForm, ParentLinkForm
-
+from .forms import PhraseForm, LessonForm, ExampleForm, SiteSettingForm, ParentLinkForm
+from django.contrib.auth.forms import UserCreationForm
 User = get_user_model()
 
 
@@ -62,9 +70,13 @@ def teacher_dashboard(request):
     if request.user.role not in ['teacher', 'admin']:
         return redirect('home')
 
+    # All phrases
     phrases = Phrase.objects.all().order_by("id")
+
+    # All attempts
     attempts = Attempt.objects.select_related("user", "phrase").order_by('-attempt_date')
 
+    # Leaderboard preview
     top = (
         Attempt.objects.filter(is_correct=True)
         .values("user__username")
@@ -72,9 +84,10 @@ def teacher_dashboard(request):
         .order_by("-points", "user__username")[:10]
     )
 
-    link_form = ParentLinkForm()
-    existing_links = ParentLink.objects.select_related("student", "parent").all()
+    # Parent-Student links fetched dynamically
+    existing_links = User.objects.filter(role='student', parent__isnull=False).select_related('parent')
 
+    # Site settings
     site_settings = SiteSetting.get()
     site_form = SiteSettingForm(instance=site_settings) if request.user.role == 'admin' else None
 
@@ -82,55 +95,85 @@ def teacher_dashboard(request):
         "phrases": phrases,
         "attempts": attempts,
         "leader_preview": top,
-        "link_form": link_form,
         "existing_links": existing_links,
         "site_form": site_form,
     })
 
-
 # -----------------------------
 # Student Dashboard
-# -----------------------------
 @login_required
 def student_dashboard(request):
+    # Ensure only students can access
     if request.user.role != 'student':
         return redirect('home')
 
+    # Fetch phrases
     phrases = Phrase.objects.all().order_by("id")
+
+    # Fetch attempts of this student with related phrase to optimize queries
     attempts = Attempt.objects.filter(user=request.user).select_related("phrase").order_by('-attempt_date')
+
+    # Calculate total points (correct attempts)
     total_points = attempts.filter(is_correct=True).count()
+
+    # Determine current belt based on points
     current_belt = belt_for_correct(total_points)
 
+    # Fetch lessons for dashboard
+    lessons = Lesson.objects.all().order_by("id")
+
+    # Render dashboard with all required context
     return render(request, "core/student_dashboard.html", {
         "phrases": phrases,
         "attempts": attempts,
         "total_points": total_points,
         "current_belt": current_belt,
+        "lessons": lessons,
     })
-
 
 # -----------------------------
 # Parent Dashboard
-# -----------------------------
 @login_required
 def parent_dashboard(request):
     if request.user.role != 'parent':
         return redirect('home')
 
-    students = User.objects.filter(linked_parents__parent=request.user).distinct()
-    data = []
-    for s in students:
-        attempts = Attempt.objects.filter(user=s).count()
-        correct = Attempt.objects.filter(user=s, is_correct=True).count()
-        data.append({
-            "student": s,
-            "total": attempts,
-            "correct": correct,
-            "belt": belt_for_correct(correct),
+    # Fetch all students whose parent is the logged-in user
+    linked_students = User.objects.filter(role='student', parent=request.user)
+
+    students_data = []
+    for student in linked_students:
+        attempts = Attempt.objects.filter(user=student).select_related("phrase").order_by('-attempt_date')
+        total_attempts = attempts.count()
+        correct_attempts = attempts.filter(is_correct=True).count()
+        current_belt = belt_for_correct(correct_attempts)
+
+        # Prepare chart data for progress graph
+        chart_data = []
+        cum_correct = 0
+        for att in attempts.order_by('attempt_date'):
+            if att.is_correct:
+                cum_correct += 1
+            chart_data.append({
+                "date": att.attempt_date.strftime("%Y-%m-%d %H:%M"),
+                "correct": att.is_correct,
+                "total_correct": cum_correct,
+            })
+
+        students_data.append({
+            "student": student,
+            "attempts": attempts[:5],  # recent 5 attempts
+            "total_attempts": total_attempts,
+            "correct_attempts": correct_attempts,
+            "current_belt": current_belt,
+            "chart_data": chart_data,
         })
 
-    return render(request, "core/parent_dashboard.html", {"children": data})
+    context = {
+        "students_data": students_data
+    }
 
+    return render(request, "core/parent_dashboard.html", context)
 
 # -----------------------------
 # Practice page
@@ -246,43 +289,100 @@ def delete_phrase(request, phrase_id):
 # -----------------------------
 # Admin: Site settings update
 # -----------------------------
+
 @login_required
 def update_site_settings(request):
+    # Only admin users can access
     if request.user.role != 'admin':
+        messages.error(request, "You are not authorized to access this page.")
         return redirect('home')
-    settings_obj = SiteSetting.get()
+
+    # Get the SiteSetting object (create if it doesn't exist)
+    settings_obj, created = SiteSetting.objects.get_or_create(id=1)
+
     if request.method == "POST":
         form = SiteSettingForm(request.POST, request.FILES, instance=settings_obj)
         if form.is_valid():
             form.save()
-            messages.success(request, "Site settings saved.")
+            messages.success(request, "Site settings saved successfully.")
             return redirect('home')
-    return redirect('home')
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = SiteSettingForm(instance=settings_obj)
+
+    return render(request, 'core/update_site_settings.html', {'form': form})
 
 
 # -----------------------------
 # Parent linking
 # -----------------------------
+
+@login_required
+def link_student_parent(request):
+    if request.user.role not in ['admin', 'teacher']:
+        return redirect('home')
+
+    if request.method == "POST":
+        student_id = request.POST.get('student_id')
+        parent_id = request.POST.get('parent_id')
+        try:
+            student = User.objects.get(id=student_id)
+            parent = User.objects.get(id=parent_id)
+            student.parent = parent
+            student.save()
+            messages.success(request, f"Linked {student.username} to {parent.username}.")
+            return redirect('link_student_parent')  # redirect reloads with fresh data
+        except User.DoesNotExist:
+            messages.error(request, "Invalid student or parent.")
+
+    students = User.objects.filter(role='student')
+    parents = User.objects.filter(role='parent')
+    linked_students = User.objects.filter(role='student', parent__isnull=False)
+    return render(request, 'core/link_student_parent.html', {
+        'students': students,
+        'parents': parents,
+        'linked_students': linked_students
+    })
+
+
+@login_required
+def manage_links(request):
+    if request.user.role not in ['admin', 'teacher']:
+        return redirect('home')
+
+    linked_students = User.objects.filter(role='student', parent__isnull=False)
+    return render(request, 'core/manage_links.html', {'linked_students': linked_students})
+
+
+@login_required
+def delete_parent_link(request, student_id):
+    if request.user.role not in ['admin', 'teacher']:
+        return redirect('home')
+    try:
+        student = User.objects.get(id=student_id)
+        student.parent = None
+        student.save()
+        messages.success(request, f"Unlinked {student.username} from parent.")
+    except User.DoesNotExist:
+        messages.error(request, "Invalid student.")
+    return redirect('manage_links')
+
+
 @login_required
 def add_parent_link(request):
     if request.user.role not in ['admin', 'teacher']:
         return redirect('home')
+
     if request.method == "POST":
         form = ParentLinkForm(request.POST)
         if form.is_valid():
             form.save()
             messages.success(request, "Parent linked to student.")
-    return redirect('home')
+        else:
+            messages.error(request, "Form invalid. Please check data.")
 
-
-@login_required
-def delete_parent_link(request, link_id):
-    if request.user.role not in ['admin', 'teacher']:
-        return redirect('home')
-    ParentLink.objects.filter(id=link_id).delete()
-    messages.success(request, "Link removed.")
-    return redirect('home')
-
+    return redirect('link_student_parent')
 
 # -----------------------------
 # Examples hub
@@ -302,48 +402,18 @@ def example_detail(_request, example_id):
 # -----------------------------
 # Static pages
 # -----------------------------
-@login_required
+
 def about_page(request):
     return render(request, "core/about.html")
 
 
-@login_required
 def contact_page(request):
     return render(request, "core/contact.html")
 
 
-@login_required
 def examples_page(request):
     return render(request, "core/examples.html")
 
-
-# -----------------------------
-# Link student → parent
-# -----------------------------
-@login_required
-def link_student_parent(request):
-    if request.method == "POST":
-        student_id = request.POST.get('student_id')
-        parent_id = request.POST.get('parent_id')
-        try:
-            student = User.objects.get(id=student_id, role='student')
-            parent = User.objects.get(id=parent_id, role='parent')
-            student.parent = parent
-            student.save()
-            messages.success(request, f"Linked {student.username} to {parent.username}.")
-            return redirect('manage_links')
-        except User.DoesNotExist:
-            messages.error(request, "Invalid student or parent.")
-
-    students = User.objects.filter(role='student')
-    parents = User.objects.filter(role='parent')
-    return render(request, 'core/link_student_parent.html', {'students': students, 'parents': parents})
-
-
-@login_required
-def manage_links(request):
-    linked_students = User.objects.filter(role='student', parent__isnull=False)
-    return render(request, 'core/manage_links.html', {'linked_students': linked_students})
 
 
 # -----------------------------
@@ -354,13 +424,19 @@ def leaderboard(request):
     students = User.objects.filter(role='student').annotate(
         total_correct=Count('attempts', filter=Q(attempts__is_correct=True))
     ).order_by('-total_correct', 'username')
+
     return render(request, 'core/leaderboard.html', {'students': students})
 
 
+# -----------------------------
+# Progress Graph (Detailed View)
+# -----------------------------
 @login_required
 def progress_graph(request, student_id):
     student = get_object_or_404(User, id=student_id, role='student')
-    if request.user.role not in ['teacher', 'admin'] and request.user != student:
+
+    # Only teacher, admin, or the student's parent can view
+    if request.user.role not in ['teacher', 'admin', 'parent'] and request.user != student:
         return redirect('home')
 
     attempts = Attempt.objects.filter(user=student).order_by('attempt_date')
@@ -380,3 +456,113 @@ def progress_graph(request, student_id):
         'student': student,
         'graph_data': graph_data,
     })
+@login_required
+def lessons(request):
+    if request.user.role not in ['admin', 'teacher']:
+        return redirect('home')
+    all_lessons = Lesson.objects.all()
+    return render(request, 'core/lessons.html', {'lessons': all_lessons})
+
+@login_required
+def add_lesson(request):
+    if request.user.role not in ['admin', 'teacher']:
+        return redirect('home')
+    if request.method == 'POST':
+        form = LessonForm(request.POST, request.FILES)
+        if form.is_valid():
+            lesson = form.save(commit=False)
+            lesson.created_by = request.user
+            lesson.save()
+            messages.success(request, "Lesson added successfully!")
+            return redirect('lessons')
+    else:
+        form = LessonForm()
+    return render(request, 'core/add_lesson.html', {'form': form})
+
+@login_required
+def edit_lesson(request, lesson_id):
+    if request.user.role not in ['admin', 'teacher']:
+        return redirect('home')
+    lesson = get_object_or_404(Lesson, id=lesson_id)
+    if request.method == 'POST':
+        form = LessonForm(request.POST, request.FILES, instance=lesson)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Lesson updated!")
+            return redirect('lessons')
+    else:
+        form = LessonForm(instance=lesson)
+    return render(request, 'core/add_lesson.html', {'form': form, 'edit': True})
+
+@login_required
+def delete_lesson(request, lesson_id):
+    if request.user.role not in ['admin', 'teacher']:
+        return redirect('home')
+    lesson = get_object_or_404(Lesson, id=lesson_id)
+    lesson.delete()
+    messages.success(request, "Lesson deleted!")
+    return redirect('lessons')
+
+# views.py
+@login_required
+def lesson_detail(request, lesson_id):
+    lesson = get_object_or_404(Lesson, id=lesson_id)
+    return render(request, 'core/lesson_detail.html', {'lesson': lesson})
+
+
+def leaderboard_page(request):
+    # Assuming you have 'points' and 'belt' as fields in a profile model or extended User model
+    students = User.objects.all().order_by('-profile.points')  # adjust if different model
+    students_data = [{'username': s.username, 'points': s.profile.points, 'belt': s.profile.belt} for s in students]
+    return render(request, 'leaderboard.html', {'students': students_data})
+
+def register(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('login')  # redirect to login after successful registration
+    else:
+        form = UserCreationForm()
+    return render(request, 'accounts/register.html', {'form': form})
+
+
+# Decorator to allow only superusers
+superuser_required = user_passes_test(lambda u: u.is_superuser)
+
+# Add Example
+@superuser_required
+def add_example(request):
+    if request.method == 'POST':
+        form = ExampleForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Example added successfully!")
+            return redirect('examples_list')
+    else:
+        form = ExampleForm()
+    return render(request, 'core/add_example.html', {'form': form, 'edit': None})
+
+# Edit Example
+@superuser_required
+def edit_example(request, example_id):
+    example = get_object_or_404(Example, id=example_id)
+    if request.method == 'POST':
+        form = ExampleForm(request.POST, request.FILES, instance=example)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Example updated successfully!")
+            return redirect('examples_list')
+    else:
+        form = ExampleForm(instance=example)
+    return render(request, 'core/add_example.html', {'form': form, 'edit': example.title})
+
+# Delete Example
+@superuser_required
+def delete_example(request, example_id):
+    example = get_object_or_404(Example, id=example_id)
+    if request.method == 'POST':
+        example.delete()
+        messages.success(request, "Example deleted successfully!")
+        return redirect('examples_list')
+    return render(request, 'core/delete_example.html', {'example': example})

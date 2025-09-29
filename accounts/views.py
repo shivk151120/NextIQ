@@ -9,6 +9,8 @@ def register(request):
             form.save()
             messages.success(request, "Account created successfully! You can log in now.")
             return redirect('login')
+        else:
+            messages.error(request, "Please correct the errors below.")
     else:
         form = CustomUserCreationForm()
     return render(request, "accounts/register.html", {"form": form})

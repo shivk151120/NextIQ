@@ -1,19 +1,71 @@
 {% extends 'core/base.html' %}
+{% load widget_tweaks %}
+
 {% block content %}
-<div class="container mt-5">
-  <h3>Login</h3>
-  <form method="post">
-    {% csrf_token %}
-    <div class="mb-3">
-      <label>Username</label>
-      <input type="text" name="username" class="form-control">
+<div class="d-flex justify-content-center align-items-center" style="min-height:70vh;">
+  <div class="card shadow-lg p-4 rounded-4" style="max-width: 400px; width: 100%;">
+    <h3 class="text-center mb-4">Login</h3>
+
+    <!-- Error Messages -->
+    {% if form.errors %}
+      <div class="alert alert-danger">
+        Please check your credentials and try again.
+      </div>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <!-- Username Field -->
+      <div class="mb-3">
+        <label for="id_username" class="form-label">Username</label>
+        {{ form.username|add_class:"form-control rounded-pill" }}
+      </div>
+
+      <!-- Password Field with Show/Hide Toggle -->
+      <div class="mb-3">
+        <label for="id_password" class="form-label">Password</label>
+        <div class="input-group">
+          {{ form.password|add_class:"form-control rounded-start-pill" }}
+          <button type="button"
+                  class="btn btn-outline-secondary rounded-end-pill toggle-password"
+                  data-target="id_password"
+                  aria-label="Show password">
+            👁️
+          </button>
+        </div>
+      </div>
+
+      <!-- Login Button -->
+      <button type="submit" class="btn btn-primary w-100 rounded-pill">Login</button>
+    </form>
+
+    <!-- Register Link -->
+    <div class="text-center mt-3">
+      <span>Don't have an account? <a href="{% url 'register' %}">Register</a></span>
     </div>
-    <div class="mb-3">
-      <label>Password</label>
-      <input type="password" name="password" class="form-control">
-    </div>
-    <button type="submit" class="btn btn-primary">Login</button>
-  </form>
-  <p class="mt-3">Don't have an account? <a href="{% url 'register' %}">Register</a></p>
+  </div>
 </div>
+
+<!-- Show/Hide Password Script -->
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const toggleButtons = document.querySelectorAll(".toggle-password");
+
+    toggleButtons.forEach(button => {
+      button.addEventListener("click", function () {
+        const targetId = this.getAttribute("data-target");
+        const targetField = document.getElementById(targetId);
+
+        if (targetField.type === "password") {
+          targetField.type = "text";
+          this.textContent = "🙈"; // When password is visible
+        } else {
+          targetField.type = "password";
+          this.textContent = "👁️"; // When password is hidden
+        }
+      });
+    });
+  });
+</script>
 {% endblock %}

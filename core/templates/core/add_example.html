@@ -1,0 +1,12 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h3>{{ edit|default_if_none:"Add New Example" }}</h3>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button class="btn btn-success">Save</button>
+  </form>
+  <a href="{% url 'examples_list' %}" class="btn btn-outline-secondary mt-3">← Back to Examples</a>
+</div>
+{% endblock %}

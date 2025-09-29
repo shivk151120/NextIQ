@@ -3,80 +3,108 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Alloneword</title>
+  <title>NextIQ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Favicon -->
-  <link rel="shortcut icon" href="{% static 'core/favicon.ico' %}" type="image/x-icon">
-  <link rel="icon" href="{% static 'core/favicon.ico' %}" type="image/x-icon">
+  <link rel="shortcut icon" href="{% static 'images/favicon.ico' %}" type="image/x-icon">
+  <link rel="icon" href="{% static 'images/favicon.ico' %}?v=2" type="image/x-icon">
 
-  <!-- TailwindCSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link href="{% static 'core/css/custom.css' %}" rel="stylesheet">
+
   <!-- Chart.js for graphs -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
-<body class="bg-gray-100 font-sans text-gray-800">
+<body class="bg-light d-flex flex-column min-vh-100">
 
 <!-- Navbar -->
-<nav class="bg-white shadow-md px-6 py-4 flex justify-between items-center">
-  <a href="{% url 'home' %}" class="text-xl font-bold text-gray-900">Alloneword</a>
+<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm rounded">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="{% url 'home' %}">NextIQ</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
 
-  <!-- Mobile menu button -->
-  <button id="menu-btn" class="text-gray-700 md:hidden focus:outline-none">
-    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-    </svg>
-  </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto align-items-center">
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'about_page' %}">About</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'examples_list' %}">Examples</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'contact_page' %}">Contact</a>
+        </li>
 
-  <!-- Desktop Menu -->
-  <div id="menu" class="hidden md:flex md:space-x-6">
-    <a href="{% url 'about_page' %}" class="hover:text-blue-600">About</a>
-    <a href="{% url 'examples_page' %}" class="hover:text-blue-600">Examples</a>
-    <a href="{% url 'contact_page' %}" class="hover:text-blue-600">Contact</a>
+        {% if user.is_authenticated %}
+          <li class="nav-item ms-3">
+            <form action="{% url 'logout' %}" method="post" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-danger rounded-pill">Logout</button>
+            </form>
+          </li>
+        {% else %}
+          <li class="nav-item ms-2">
+            <a class="btn btn-outline-primary rounded-pill" href="{% url 'login' %}">Login</a>
+          </li>
+          <li class="nav-item ms-2">
+            <a class="btn btn-primary rounded-pill" href="{% url 'register' %}">Register</a>
+          </li>
+        {% endif %}
+      </ul>
+    </div>
   </div>
 </nav>
 
-<!-- Mobile Menu -->
-<div id="mobile-menu" class="hidden md:hidden bg-white shadow-md px-6 py-4 space-y-2">
-  <a href="{% url 'about_page' %}" class="block hover:text-blue-600">About</a>
-  <a href="{% url 'examples_page' %}" class="block hover:text-blue-600">Examples</a>
-  <a href="{% url 'contact_page' %}" class="block hover:text-blue-600">Contact</a>
-</div>
-
-<!-- Main content -->
-<main class="py-8 px-4 md:px-8 max-w-6xl mx-auto">
+<!-- Main Content -->
+<main class="py-5 px-3 container flex-grow-1">
   {% block content %}{% endblock %}
 </main>
 
 <!-- Footer -->
-<footer class="bg-gray-900 text-gray-200 py-8 mt-12">
-  <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-    <div class="text-sm space-y-1">
-      <strong>{{ SITE.org_name }}</strong><br>
-      ABN: {{ SITE.abn }}<br>
-      Email: {{ SITE.contact_email }} | Phone: {{ SITE.phone }}<br>
-      {{ SITE.footer_note }}
+<footer class="bg-dark text-light py-5 mt-5">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center">
+
+    <!-- Left Side: Contact Details -->
+    <div class="text-center text-md-start mb-3 mb-md-0 small">
+      {% if SITE %}
+        <p class="mb-1"><strong>{{ SITE.org_name|default:"Organization Name" }}</strong></p>
+        {% if SITE.abn %}<p class="mb-1">ABN: {{ SITE.abn }}</p>{% endif %}
+        {% if SITE.contact_email %}
+          <p class="mb-1">Email:
+            <a href="mailto:{{ SITE.contact_email }}" class="text-light text-decoration-none">{{ SITE.contact_email }}</a>
+          </p>
+        {% endif %}
+        {% if SITE.phone %}
+          <p class="mb-1">Phone:
+            <a href="tel:{{ SITE.phone }}" class="text-light text-decoration-none">{{ SITE.phone }}</a>
+          </p>
+        {% endif %}
+        {% if SITE.footer_note %}<p class="small text-muted mt-2">{{ SITE.footer_note }}</p>{% endif %}
+      {% else %}
+        <p class="text-muted mb-0">Footer details not configured.</p>
+      {% endif %}
     </div>
-    <div class="text-sm text-right">
+
+    <!-- Right Side: Banner -->
+    <div class="text-center text-md-end">
       {% if SITE.banner_image %}
-        <img src="{{ SITE.banner_image.url }}" class="mx-auto md:ml-auto md:mr-0 rounded max-h-20" alt="banner">
+        <img src="{{ SITE.banner_image.url }}" class="rounded mb-2" style="max-height: 80px;" alt="Site Banner">
       {% endif %}
       {% if SITE.banner_text %}
-        <div class="mt-2">{{ SITE.banner_text }}</div>
+        <div class="small text-muted">{{ SITE.banner_text }}</div>
       {% endif %}
     </div>
+
   </div>
 </footer>
 
-<!-- Mobile menu toggle -->
-<script>
-  const btn = document.getElementById('menu-btn');
-  const menu = document.getElementById('mobile-menu');
-
-  btn.addEventListener('click', () => {
-    menu.classList.toggle('hidden');
-  });
-</script>
-
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

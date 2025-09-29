@@ -1,31 +1,42 @@
 {% extends 'core/base.html' %}
 {% block content %}
-<div class="container">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3>Teacher Dashboard</h3>
-    <a class="btn btn-outline-secondary back-link" href="{% url 'home' %}">← Back</a>
+<div class="container my-5">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold">Teacher Dashboard</h3>
+    <a class="btn btn-outline-secondary" href="{% url 'home' %}">← Back</a>
   </div>
 
-  <div class="row gy-3">
+  <div class="row g-3">
+
+    <!-- Left: Phrases & Attempts -->
     <div class="col-12 col-xl-8">
-      <div class="card shadow-sm">
+
+      <!-- All Phrases -->
+      <div class="card shadow-sm border-0 mb-3">
         <div class="card-body">
           <h5 class="mb-3">All Phrases</h5>
           <a href="{% url 'add_phrase' %}" class="btn btn-success btn-sm mb-3">Add New Phrase</a>
-          <table class="table table-bordered">
-            <thead class="table-dark">
-              <tr><th>Phrase</th><th>ACARA</th><th>Audio</th><th>Created By</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-              {% for phrase in phrases %}
+          <div class="table-responsive">
+            <table class="table table-bordered table-hover align-middle mb-0">
+              <thead class="table-dark">
+                <tr>
+                  <th>Phrase</th>
+                  <th>Audio</th>
+                  <th>Created By</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for phrase in phrases %}
                 <tr>
                   <td>{{ phrase.text }}</td>
-                  <td>{{ phrase.acara_code }}</td>
                   <td>
                     {% if phrase.audio %}
-                      <audio controls style="max-width:150px">
-                        <source src="{{ phrase.audio.url }}" type="audio/mpeg">
-                      </audio>
+                    <audio controls style="max-width:150px">
+                      <source src="{{ phrase.audio.url }}" type="audio/mpeg">
+                    </audio>
                     {% else %}—{% endif %}
                   </td>
                   <td>{{ phrase.created_by.username }}</td>
@@ -35,47 +46,55 @@
                        onclick="return confirm('Delete this phrase?');">Delete</a>
                   </td>
                 </tr>
-              {% empty %}
-                <tr><td colspan="5">No phrases.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
+                {% empty %}
+                <tr><td colspan="4" class="text-center">No phrases available.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <div class="card shadow-sm mt-3">
+      <!-- All Attempts -->
+      <div class="card shadow-sm border-0 mb-3">
         <div class="card-body">
           <h5 class="mb-3">All Attempts</h5>
-          <table class="table table-striped table-bordered">
-            <thead class="table-dark">
-              <tr><th>Student</th><th>Phrase</th><th>Time(s)</th><th>Correct?</th><th>Date</th></tr>
-            </thead>
-            <tbody>
-              {% for attempt in attempts %}
-              <tr class="{% if attempt.is_correct %}table-success{% else %}table-danger{% endif %}">
-                <td>{{ attempt.user.username }}</td>
-                <td>{{ attempt.phrase.text }}</td>
-                <td>{{ attempt.time_taken }}</td>
-                <td>{% if attempt.is_correct %}✔{% else %}✖{% endif %}</td>
-                <td>{{ attempt.attempt_date|date:"d M Y H:i" }}</td>
-              </tr>
-              {% empty %}
-                <tr><td colspan="5">No attempts yet.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
+          <div class="table-responsive">
+            <table class="table table-striped table-bordered align-middle mb-0">
+              <thead class="table-dark">
+                <tr><th>Student</th><th>Phrase</th><th>Time(s)</th><th>Correct?</th><th>Date</th></tr>
+              </thead>
+              <tbody>
+                {% for attempt in attempts %}
+                <tr class="{% if attempt.is_correct %}table-success{% else %}table-danger{% endif %}">
+                  <td>{{ attempt.user.username }}</td>
+                  <td>{{ attempt.phrase.text }}</td>
+                  <td>{{ attempt.time_taken }}</td>
+                  <td>{% if attempt.is_correct %}✔{% else %}✖{% endif %}</td>
+                  <td>{{ attempt.attempt_date|date:"d M Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="text-center">No attempts yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
 
-          <button class="btn btn-outline-primary mt-2" data-bs-toggle="modal" data-bs-target="#leaderboardModal">
+          <button class="btn btn-outline-primary mt-3" data-bs-toggle="modal" data-bs-target="#leaderboardModal">
             View Leaderboard
           </button>
         </div>
       </div>
+
     </div>
 
+    <!-- Right: Links & Settings -->
     <div class="col-12 col-xl-4">
-      <div class="card shadow-sm">
+
+      <!-- Link Parent to Student -->
+      <div class="card shadow-sm border-0 mb-3">
         <div class="card-body">
-          <h5>Link Parent to Student</h5>
+          <h5 class="mb-3">Link Parent to Student</h5>
           <form method="post" action="{% url 'add_parent_link' %}">
             {% csrf_token %}
             {{ link_form.as_p }}
@@ -84,23 +103,24 @@
 
           <hr>
           <h6>Existing Links</h6>
-          <ul class="list-group">
-            {% for ln in existing_links %}
-              <li class="list-group-item d-flex justify-content-between align-items-center">
-                {{ ln.student.username }} ↔ {{ ln.parent.username }}
-                <a class="btn btn-outline-danger btn-sm" href="{% url 'delete_parent_link' ln.id %}">Remove</a>
-              </li>
+          <ul class="list-group list-group-flush">
+            {% for student in existing_links %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              {{ student.username }} ↔ {{ student.parent.username }}
+              <a class="btn btn-outline-danger btn-sm" href="{% url 'delete_parent_link' student.id %}">Remove</a>
+            </li>
             {% empty %}
-              <li class="list-group-item">No links yet.</li>
+            <li class="list-group-item text-center">No student linked</li>
             {% endfor %}
           </ul>
         </div>
       </div>
 
+      <!-- Footer / Banner Settings for Admin -->
       {% if site_form %}
-      <div class="card shadow-sm mt-3">
+      <div class="card shadow-sm border-0">
         <div class="card-body">
-          <h5>Footer & Banner (Admin)</h5>
+          <h5 class="mb-3">Footer & Banner (Admin)</h5>
           <form method="post" enctype="multipart/form-data" action="{% url 'update_site_settings' %}">
             {% csrf_token %}
             {{ site_form.as_p }}
@@ -109,6 +129,15 @@
         </div>
       </div>
       {% endif %}
+
+      <!-- Lessons Menu -->
+      <div class="card shadow-sm border-0 mt-3">
+        <div class="card-body">
+          <h5 class="mb-3">Lessons</h5>
+          <a href="{% url 'lessons' %}" class="btn btn-info btn-sm">View Lessons</a>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -116,13 +145,13 @@
 <!-- Leaderboard Modal -->
 <div class="modal fade" id="leaderboardModal" tabindex="-1">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
+    <div class="modal-content border-0 shadow-sm">
+      <div class="modal-header bg-dark text-white">
         <h5 class="modal-title">Leaderboard</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <table class="table table-striped table-bordered">
+        <table class="table table-striped table-bordered mb-0">
           <thead class="table-dark">
             <tr><th>#</th><th>Student</th><th>Points</th><th>Belt</th></tr>
           </thead>
@@ -147,7 +176,7 @@ lbModal.addEventListener('show.bs.modal', () => {
             <td>${idx+1}</td>
             <td>${row.username}</td>
             <td>${row.points}</td>
-            <td><span class="badge text-bg-dark">${row.belt}</span></td>
+            <td><span class="badge bg-dark">${row.belt}</span></td>
           </tr>`;
       });
     });
