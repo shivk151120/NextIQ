@@ -15,7 +15,7 @@ ALLOWED_HOSTS = ['nextiq.onrender.com', 'localhost', '127.0.0.1']
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://localhost:8000",
-    "https://shivk151120.pythonanywhere.com"
+    "https://shivk151120.pythonanywhere.com",
     "https://nextiq.onrender.com"
 ]
 
