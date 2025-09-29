@@ -6,8 +6,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ── SECURITY ──
 SECRET_KEY = 'django-insecure-(r-2gd$xopr8)z10!*fl+zru-!ksux4k)0m-$$v6&xhk8)v#n%'
-DEBUG = True  # Must be False for live site
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+DEBUG = False  # Must be False for live site
+ALLOWED_HOSTS = ['nextiq.onrender.com', 'localhost', '127.0.0.1']
+
 
 
 # Trusted origins for CSRF
@@ -15,6 +16,7 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://localhost:8000",
     "https://shivk151120.pythonanywhere.com"
+    "https://nextiq.onrender.com"
 ]
 
 # ── APPLICATIONS ──
